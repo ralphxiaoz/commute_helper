@@ -24,7 +24,36 @@
                                 <input type="checkbox" id="leave-by-checkbox">
                                 <label for="leave-by-checkbox">Leave by</label>
                             </div>
-                            <input type="datetime-local" id="departure-time" disabled step="900">
+                            <div class="time-picker-container">
+                                <input type="date" id="departure-date" disabled>
+                                <div class="time-selectors">
+                                    <select id="departure-hour" disabled>
+                                        <option value="01">01</option>
+                                        <option value="02">02</option>
+                                        <option value="03">03</option>
+                                        <option value="04">04</option>
+                                        <option value="05">05</option>
+                                        <option value="06">06</option>
+                                        <option value="07">07</option>
+                                        <option value="08">08</option>
+                                        <option value="09">09</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                    </select>
+                                    <span>:</span>
+                                    <select id="departure-minute" disabled>
+                                        <option value="00">00</option>
+                                        <option value="15">15</option>
+                                        <option value="30">30</option>
+                                        <option value="45">45</option>
+                                    </select>
+                                    <select id="departure-ampm" disabled>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

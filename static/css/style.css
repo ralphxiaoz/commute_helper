@@ -126,6 +126,15 @@ button:hover {
     color: #666;
 }
 
+.option-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+}
+
 .departure-time-container {
     display: flex;
     flex-direction: column;
@@ -151,6 +160,46 @@ button:hover {
     font-weight: 500;
 }
 
+.time-picker-container {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.time-selectors {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.time-selectors select {
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.time-selectors span {
+    font-weight: bold;
+}
+
+#departure-hour, #departure-minute {
+    width: 60px;
+}
+
+#departure-ampm {
+    width: 70px;
+}
+
+#departure-date {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+
 input[type="datetime-local"] {
     width: 200px;
     padding: 8px 12px;
@@ -159,19 +208,10 @@ input[type="datetime-local"] {
     background-color: white;
 }
 
-input[disabled] {
+input[disabled], select[disabled] {
     background-color: #f0f0f0;
     color: #888;
     cursor: not-allowed;
-}
-
-.option-group select {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: white;
-    cursor: pointer;
 }
 
 .commute-result {

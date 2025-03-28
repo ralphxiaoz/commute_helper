@@ -59,14 +59,20 @@ function setupEventListeners() {
     
     // Leave by checkbox
     const leaveByCheckbox = document.getElementById('leave-by-checkbox');
-    const departureTimeInput = document.getElementById('departure-time');
+    const departureDate = document.getElementById('departure-date');
+    const departureHour = document.getElementById('departure-hour');
+    const departureMinute = document.getElementById('departure-minute');
+    const departureAmPm = document.getElementById('departure-ampm');
     
     leaveByCheckbox.addEventListener('change', function() {
-        // Enable/disable departure time input based on checkbox state
-        departureTimeInput.disabled = !this.checked;
+        // Enable/disable departure time inputs based on checkbox state
+        departureDate.disabled = !this.checked;
+        departureHour.disabled = !this.checked;
+        departureMinute.disabled = !this.checked;
+        departureAmPm.disabled = !this.checked;
         
         // If checked and no time is set, default to current time plus 1 hour
-        if (this.checked && !departureTimeInput.value) {
+        if (this.checked) {
             const now = new Date();
             now.setHours(now.getHours() + 1);
             
@@ -80,14 +86,24 @@ function setupEventListeners() {
                 now.setHours(now.getHours() + 1);
             }
             
-            // Format for datetime-local input (YYYY-MM-DDThh:mm)
+            // Format for date input (YYYY-MM-DD)
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
             const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const adjustedMinutes = String(now.getMinutes()).padStart(2, '0');
+            departureDate.value = `${year}-${month}-${day}`;
             
-            departureTimeInput.value = `${year}-${month}-${day}T${hours}:${adjustedMinutes}`;
+            // Set hour (1-12 format)
+            let hours = now.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // Convert 0 to 12
+            departureHour.value = String(hours).padStart(2, '0');
+            
+            // Set minutes (00, 15, 30, 45)
+            departureMinute.value = String(roundedMinutes % 60).padStart(2, '0');
+            
+            // Set AM/PM
+            departureAmPm.value = ampm;
         }
     });
     
@@ -320,13 +336,16 @@ function addMarker(position, type, label) {
 // Calculate route between office and rental using Google Routes API
 function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel) {
     // Get departure time and travel mode from the UI
-    const departureTimeInput = document.getElementById('departure-time');
+    const departureDate = document.getElementById('departure-date');
+    const departureHour = document.getElementById('departure-hour');
+    const departureMinute = document.getElementById('departure-minute');
+    const departureAmPm = document.getElementById('departure-ampm');
     const travelModeSelect = document.getElementById('travel-mode');
     const leaveByCheckbox = document.getElementById('leave-by-checkbox');
     const selectedMode = travelModeSelect.value;
     
     // For transit mode, departure time is required
-    if (selectedMode === "TRANSIT" && (!leaveByCheckbox.checked || !departureTimeInput.value)) {
+    if (selectedMode === "TRANSIT" && !leaveByCheckbox.checked) {
         displayRouteError(rentalLabel, "Departure time is required for public transit routes");
         return;
     }
@@ -364,8 +383,22 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel) {
     }
     
     // Add departure time only if "Leave by" is checked
-    if (leaveByCheckbox.checked && departureTimeInput.value) {
-        const selectedDateTime = new Date(departureTimeInput.value);
+    if (leaveByCheckbox.checked && departureDate.value) {
+        // Convert the time components to a JavaScript Date
+        const dateValue = departureDate.value;
+        let hours = parseInt(departureHour.value);
+        const minutes = parseInt(departureMinute.value);
+        const ampm = departureAmPm.value;
+        
+        // Convert to 24-hour format
+        if (ampm === 'PM' && hours < 12) {
+            hours += 12;
+        } else if (ampm === 'AM' && hours === 12) {
+            hours = 0;
+        }
+        
+        // Create a date object
+        const selectedDateTime = new Date(`${dateValue}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`);
         requestBody.departureTime = selectedDateTime.toISOString();
     } else if (selectedMode === "TRANSIT") {
         // For transit without specified time, use current time + 1 hour as default
