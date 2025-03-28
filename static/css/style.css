@@ -233,6 +233,10 @@ input[disabled] {
     border-radius: 3px;
     font-size: 12px;
     font-weight: bold;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .rental-marker-label {

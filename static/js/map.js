@@ -230,12 +230,11 @@ function calculateRoutes() {
         rentalLocations.forEach((rentalLocation, index) => {
             // Geocode the rental location
             geocodeAddress(rentalLocation, (rentalLatLng) => {
-                // Add rental marker
-                const label = `Rental ${index + 1}`;
-                addMarker(rentalLatLng, 'rental', label);
+                // Add rental marker with the actual address
+                addMarker(rentalLatLng, 'rental', rentalLocation);
                 
-                // Calculate route using Routes API
-                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, label);
+                // Calculate route using Routes API with the actual address
+                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLocation);
             });
         });
     });
@@ -288,7 +287,7 @@ function addMarker(position, type, label) {
     
     // Create label
     const infoWindow = new google.maps.InfoWindow({
-        content: `<div class="${type}-marker-label">${label}</div>`,
+        content: `<div class="${type}-marker-label">${type === 'office' ? 'Office' : formatMarkerLabel(label)}</div>`,
         pixelOffset: new google.maps.Size(0, -5),
         disableAutoPan: true
     });
@@ -625,7 +624,7 @@ function displayRouteInfo(rentalLabel, duration, distance, additionalInfo = '') 
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result';
     resultDiv.innerHTML = `
-        <strong>${rentalLabel}</strong><br>
+        <strong>${formatResultLabel(rentalLabel)}</strong><br>
         Commute time: ${duration}<br>
         Distance: ${distance}${additionalInfo ? additionalInfo : ''}
     `;
@@ -638,7 +637,7 @@ function displayRouteError(rentalLabel, errorMessage) {
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result error';
     resultDiv.innerHTML = `
-        <strong>${rentalLabel}</strong><br>
+        <strong>${formatResultLabel(rentalLabel)}</strong><br>
         <span class="error-message">${errorMessage}</span>
     `;
     resultsContainer.appendChild(resultDiv);
@@ -671,4 +670,38 @@ function getRandomColor() {
         color += letters[Math.floor(Math.random() * 16)];
     }
     return color;
+}
+
+// Helper function to format address for display in map markers (very short)
+function formatMarkerLabel(address) {
+    // If it's already a short label like "Office", return as is
+    if (address.length < 10) return address;
+    
+    // Format the address to make it compact for markers
+    const parts = address.split(',');
+    
+    // For map markers: just show house number and street
+    if (parts.length >= 1) {
+        return parts[0].trim();
+    }
+    
+    return address;
+}
+
+// Helper function to format address for display in result panels (more detailed)
+function formatResultLabel(address) {
+    // If it's already a short label like "Office", return as is
+    if (address.length < 10) return address;
+    
+    // Format the address for result panels
+    const parts = address.split(',');
+    
+    // For results: show street address and city
+    if (parts.length >= 3) {
+        const streetAddress = parts[0].trim();
+        const cityOrArea = parts[1].trim();
+        return `${streetAddress}, ${cityOrArea}`;
+    }
+    
+    return address;
 } 
