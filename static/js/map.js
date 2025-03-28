@@ -12,10 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialize Google Map
 function initMap() {
-    // Default center (can be adjusted)
+    // Default center (used as fallback if geolocation fails)
     const defaultCenter = { lat: 40.7128, lng: -74.0060 }; // NYC
     
-    // Create map instance
+    // Create map instance with default center first
     map = new google.maps.Map(document.getElementById('map'), {
         center: defaultCenter,
         zoom: 12,
@@ -24,6 +24,79 @@ function initMap() {
         streetViewControl: true,
         zoomControl: true
     });
+    
+    // Show a notification that we're getting location
+    showLocationNotification("Getting your location...");
+    
+    // Try to get user's current location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            // Success callback
+            (position) => {
+                const userLocation = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                
+                // Recenter map to user location
+                map.setCenter(userLocation);
+                map.setZoom(13); // A better zoom level for a local area
+                
+                // Add a marker at the user's location
+                const marker = new google.maps.Marker({
+                    position: userLocation,
+                    map: map,
+                    title: "Your Location",
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 10,
+                        fillColor: '#0F9D58',
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: '#FFF'
+                    }
+                });
+                
+                // Add info window for the user's location
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `<div class="your-location-marker">Your Location</div>`,
+                    pixelOffset: new google.maps.Size(0, -5),
+                    disableAutoPan: true
+                });
+                
+                infoWindow.open(map, marker);
+                
+                // Update notification
+                showLocationNotification("Using your current location");
+            },
+            // Error callback
+            (error) => {
+                console.log("Geolocation error:", error);
+                
+                // Show error notification based on error type
+                if (error.code === error.PERMISSION_DENIED) {
+                    showLocationNotification("Location access denied. Using default location.", true);
+                } else if (error.code === error.POSITION_UNAVAILABLE) {
+                    showLocationNotification("Location information unavailable. Using default location.", true);
+                } else if (error.code === error.TIMEOUT) {
+                    showLocationNotification("Location request timed out. Using default location.", true);
+                } else {
+                    showLocationNotification("Unknown error getting location. Using default location.", true);
+                }
+                
+                // Keep the default NYC center if there's an error
+            },
+            // Options
+            {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            }
+        );
+    } else {
+        // Browser doesn't support geolocation
+        showLocationNotification("Your browser doesn't support geolocation. Using default location.", true);
+    }
     
     // Initialize autocomplete for the office location
     const officeInput = document.getElementById('office-location');
@@ -50,6 +123,13 @@ function setupEventListeners() {
     document.addEventListener('click', (e) => {
         if (e.target.classList.contains('remove-rental')) {
             const rentalDiv = e.target.closest('.rental-input');
+            
+            // Don't allow removal if it's the primary rental or if it's the last remaining rental
+            if (rentalDiv.classList.contains('primary-rental')) {
+                return; // Don't remove the primary rental
+            }
+            
+            // Proceed with removal for non-primary rentals
             rentalDiv.remove();
         }
     });
@@ -155,9 +235,12 @@ function addRental() {
     rentalDiv.className = 'rental-input';
     rentalDiv.dataset.id = nextRentalId++;
     
-    // Create input and button elements
+    // Create input and button elements with consistent classes
     rentalDiv.innerHTML = `
-        <input type="text" class="rental-location" placeholder="Enter rental address">
+        <div class="input-with-label">
+            <input type="text" class="rental-location address-input" placeholder="Enter starting address">
+            <input type="text" class="rental-label location-label" placeholder="label">
+        </div>
         <button class="remove-rental">Remove</button>
     `;
     
@@ -192,26 +275,35 @@ function initRentalAutocomplete(inputElement) {
     });
 }
 
-// Calculate routes between office and rentals
+// Calculate routes between starting points and destination
 function calculateRoutes() {
     // Clear previous markers and routes
     clearMarkersAndRoutes();
     
-    // Get office location
+    // Get destination location
     const officeLocation = document.getElementById('office-location').value;
+    const officeLabel = document.getElementById('office-label').value;
+    
     if (!officeLocation) {
-        alert('Please enter an office location');
+        alert('Please enter a destination address');
         return;
     }
     
-    // Get all rental locations
-    const rentalInputs = document.querySelectorAll('.rental-location');
-    const rentalLocations = Array.from(rentalInputs)
-        .map(input => input.value)
-        .filter(value => value.trim() !== '');
+    // Get all starting point locations and their labels
+    const rentalInputs = document.querySelectorAll('.rental-input');
+    const rentalData = Array.from(rentalInputs)
+        .map(div => {
+            const locationInput = div.querySelector('.rental-location');
+            const labelInput = div.querySelector('.rental-label');
+            return {
+                address: locationInput.value.trim(),
+                label: labelInput.value.trim()
+            };
+        })
+        .filter(data => data.address !== '');
     
-    if (rentalLocations.length === 0) {
-        alert('Please enter at least one rental location');
+    if (rentalData.length === 0) {
+        alert('Please enter at least one starting address');
         return;
     }
     
@@ -234,23 +326,25 @@ function calculateRoutes() {
         resultsContainer.appendChild(warningDiv);
     }
     
-    // Geocode the office location
+    // Geocode the destination location
     geocodeAddress(officeLocation, (officeLatLng) => {
-        // Add office marker
-        addMarker(officeLatLng, 'office', 'Office');
+        // Add destination marker with custom label if provided
+        const displayOfficeLabel = officeLabel || 'Destination';
+        addMarker(officeLatLng, 'office', displayOfficeLabel, officeLocation);
         
         // Clear previous results
         document.getElementById('commute-results').innerHTML = '';
         
-        // Calculate routes for each rental
-        rentalLocations.forEach((rentalLocation, index) => {
-            // Geocode the rental location
-            geocodeAddress(rentalLocation, (rentalLatLng) => {
-                // Add rental marker with the actual address
-                addMarker(rentalLatLng, 'rental', rentalLocation);
+        // Calculate routes for each starting point
+        rentalData.forEach((rental, index) => {
+            // Geocode the starting point location
+            geocodeAddress(rental.address, (rentalLatLng) => {
+                // Add starting point marker with custom label if provided
+                const displayLabel = rental.label || rental.address;
+                addMarker(rentalLatLng, 'rental', displayLabel, rental.address);
                 
-                // Calculate route using Routes API with the actual address
-                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLocation);
+                // Calculate route using Routes API
+                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address);
             });
         });
     });
@@ -263,13 +357,13 @@ function geocodeAddress(address, callback) {
         if (status === 'OK' && results[0]) {
             callback(results[0].geometry.location);
         } else {
-            alert(`Geocoding failed for address: ${address}`);
+            alert(`Address not found: ${address}`);
         }
     });
 }
 
 // Add a marker to the map
-function addMarker(position, type, label) {
+function addMarker(position, type, label, address) {
     const markerOptions = {
         position: position,
         map: map,
@@ -277,7 +371,7 @@ function addMarker(position, type, label) {
         animation: google.maps.Animation.DROP
     };
     
-    // Different icons for office and rentals
+    // Different icons for destination and starting points
     if (type === 'office') {
         markerOptions.icon = {
             path: google.maps.SymbolPath.CIRCLE,
@@ -303,7 +397,7 @@ function addMarker(position, type, label) {
     
     // Create label
     const infoWindow = new google.maps.InfoWindow({
-        content: `<div class="${type}-marker-label">${type === 'office' ? 'Office' : formatMarkerLabel(label)}</div>`,
+        content: `<div class="${type}-marker-label">${label}</div>`,
         pixelOffset: new google.maps.Size(0, -5),
         disableAutoPan: true
     });
@@ -333,8 +427,8 @@ function addMarker(position, type, label) {
     }
 }
 
-// Calculate route between office and rental using Google Routes API
-function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel) {
+// Calculate route between destination and starting point
+function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress) {
     // Get departure time and travel mode from the UI
     const departureDate = document.getElementById('departure-date');
     const departureHour = document.getElementById('departure-hour');
@@ -442,19 +536,19 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel) {
             alert(errorMsg);
             
             // Fallback to mock implementation if there's an error
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
         } else {
             console.error("Unexpected Routes API response:", JSON.stringify(data, null, 2));
-            alert(`Unexpected response format from Routes API for ${rentalLabel}`);
+            alert(`Could not calculate route for ${rentalLabel}. Please try again.`);
             // Fallback to mock implementation
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
         }
     })
     .catch(error => {
         console.error("Error calling Routes API:", error);
-        alert(`Network error when calculating route for ${rentalLabel}: ${error.message}`);
+        alert(`Network error when calculating route for ${rentalLabel}. Please check your connection and try again.`);
         // Fallback to mock implementation
-        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng);
+        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
     });
 }
 
@@ -573,7 +667,7 @@ function processRoutesAPIResponse(response, rentalLabel) {
 }
 
 // This simulates what should be a proper server-side API call
-function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng) {
+function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress) {
     // For now, we'll use the existing Google Maps JS SDK to calculate a route
     // This is a fallback until we implement the proper Routes API integration
     
@@ -657,7 +751,7 @@ function displayRouteInfo(rentalLabel, duration, distance, additionalInfo = '') 
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result';
     resultDiv.innerHTML = `
-        <strong>${formatResultLabel(rentalLabel)}</strong><br>
+        <strong>${rentalLabel}</strong><br>
         Commute time: ${duration}<br>
         Distance: ${distance}${additionalInfo ? additionalInfo : ''}
     `;
@@ -670,7 +764,7 @@ function displayRouteError(rentalLabel, errorMessage) {
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result error';
     resultDiv.innerHTML = `
-        <strong>${formatResultLabel(rentalLabel)}</strong><br>
+        <strong>${rentalLabel}</strong><br>
         <span class="error-message">${errorMessage}</span>
     `;
     resultsContainer.appendChild(resultDiv);
@@ -706,8 +800,9 @@ function getRandomColor() {
 }
 
 // Helper function to format address for display in map markers (very short)
+// Note: This is kept for backward compatibility but no longer used for labels
 function formatMarkerLabel(address) {
-    // If it's already a short label like "Office", return as is
+    // If it's already a short label like "Destination", return as is
     if (address.length < 10) return address;
     
     // Format the address to make it compact for markers
@@ -722,8 +817,9 @@ function formatMarkerLabel(address) {
 }
 
 // Helper function to format address for display in result panels (more detailed)
+// Note: This is kept for backward compatibility but no longer used for labels
 function formatResultLabel(address) {
-    // If it's already a short label like "Office", return as is
+    // If it's already a short label like "Destination", return as is
     if (address.length < 10) return address;
     
     // Format the address for result panels
@@ -737,4 +833,26 @@ function formatResultLabel(address) {
     }
     
     return address;
+}
+
+// Helper function to show location notifications
+function showLocationNotification(message, isError = false) {
+    // Remove any existing notification
+    const existingNotification = document.querySelector('.location-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.className = `location-notification${isError ? ' error' : ''}`;
+    notification.textContent = message;
+    
+    // Add to map container
+    document.getElementById('map-container').appendChild(notification);
+    
+    // Remove after 5 seconds (animation will fade it out first)
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
 } 

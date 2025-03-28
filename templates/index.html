@@ -69,18 +69,26 @@
                 </div>
             </div>
             
-            <div class="location-input">
+            <div class="location-section">
                 <h2>To</h2>
-                <input type="text" id="office-location" placeholder="Enter office address">
+                <div class="destination-input">
+                    <div class="input-with-label">
+                        <input type="text" id="office-location" class="address-input" placeholder="Enter destination address">
+                        <input type="text" id="office-label" class="location-label" placeholder="label">
+                    </div>
+                </div>
             </div>
             
-            <div id="rentals-container">
+            <div class="location-section" id="rentals-container">
                 <h2>From</h2>
                 <div class="rental-inputs" id="rental-inputs">
                     <!-- Rental inputs will be added here dynamically -->
-                    <div class="rental-input" data-id="1">
-                        <input type="text" class="rental-location" placeholder="Enter rental address">
-                        <button class="remove-rental">Remove</button>
+                    <div class="rental-input primary-rental" data-id="1">
+                        <div class="input-with-label">
+                            <input type="text" class="rental-location address-input" placeholder="Enter starting address">
+                            <input type="text" class="rental-label location-label" placeholder="label">
+                        </div>
+                        <button class="remove-rental" style="display: none;">Remove</button>
                     </div>
                 </div>
                 <button id="add-rental">Add more</button>

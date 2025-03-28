@@ -53,6 +53,32 @@ input[type="text"] {
     border-radius: 4px;
 }
 
+.input-with-label {
+    display: flex;
+    margin-bottom: 10px;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+/* Style for address inputs */
+.address-input {
+    flex: 3;
+    min-width: 65%;
+}
+
+/* Style for label inputs - SINGLE definition */
+.location-label {
+    width: 120px;
+    min-width: 120px;
+    max-width: 120px;
+    flex: none;
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    color: #666;
+    height: 38px; /* Match height with address input */
+}
+
 button {
     background-color: #4285F4;
     color: white;
@@ -67,16 +93,24 @@ button:hover {
     background-color: #3367D6;
 }
 
+/* Common styling for destination and rental inputs */
+.destination-input,
 .rental-input {
     display: flex;
     align-items: center;
     margin-bottom: 10px;
+    width: 100%;
 }
 
-.rental-input input {
-    flex-grow: 1;
+.destination-input .input-with-label,
+.rental-input .input-with-label {
+    flex: 1;
     margin-right: 10px;
     margin-bottom: 0;
+}
+
+.primary-rental .remove-rental {
+    display: none !important;
 }
 
 .remove-rental {
@@ -285,6 +319,40 @@ input[disabled], select[disabled] {
 
 .office-marker-label {
     background-color: #4285F4;
+}
+
+.location-notification {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0.9);
+    padding: 10px 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    max-width: 90%;
+    text-align: center;
+    animation: fadeOut 0.5s 4s forwards;
+}
+
+.location-notification.error {
+    background-color: rgba(219, 68, 55, 0.9);
+    color: white;
+}
+
+.your-location-marker {
+    color: white;
+    background-color: #0F9D58;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; visibility: hidden; }
 }
 
 @media (max-width: 768px) {
