@@ -107,7 +107,18 @@
             <button id="calculate-routes">Calculate Routes</button>
             
             <div id="results-container">
-                <h2>Commute Results</h2>
+                <div class="results-header">
+                    <h2>Commute Results</h2>
+                    <div class="sort-container">
+                        <label for="sort-results">Sort by:</label>
+                        <select id="sort-results">
+                            <option value="fromTo">Starting location, then destination</option>
+                            <option value="toFrom">Destination, then starting location</option>
+                            <option value="duration">Travel time (shortest first)</option>
+                            <option value="distance">Distance (shortest first)</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="commute-results"></div>
             </div>
         </div>

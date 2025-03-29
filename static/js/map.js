@@ -4,6 +4,7 @@ let markers = [];
 let nextRentalId = 2; // Start with 2 since we have 1 in the HTML
 let nextDestinationId = 2; // Start with 2 since we have 1 in the HTML
 let routePolylines = []; // To store route polylines
+let routeResults = []; // To store route results for sorting
 
 // Initialize when the page loads
 document.addEventListener('DOMContentLoaded', () => {
@@ -148,6 +149,9 @@ function setupEventListeners() {
     
     // Calculate routes button
     document.getElementById('calculate-routes').addEventListener('click', calculateRoutes);
+    
+    // Sort results dropdown
+    document.getElementById('sort-results').addEventListener('change', sortRouteResults);
     
     // Leave by checkbox
     const leaveByCheckbox = document.getElementById('leave-by-checkbox');
@@ -328,6 +332,9 @@ function initRentalAutocomplete(inputElement) {
 function calculateRoutes() {
     // Clear previous markers and routes
     clearMarkersAndRoutes();
+    
+    // Clear the route results array
+    routeResults = [];
     
     // Get all destination locations and their labels
     const destinationInputs = document.querySelectorAll('.destination-input');
@@ -820,27 +827,124 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
 
 // Display route information in the results panel
 function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '', rentalColor = null) {
+    // Store the route data for sorting
+    const routeData = {
+        fromLabel: rentalLabel,
+        toLabel: officeLabel,
+        duration: duration,
+        distance: distance,
+        additionalInfo: additionalInfo,
+        color: rentalColor,
+        // Extract numerical duration for sorting
+        durationMinutes: extractDurationMinutes(duration),
+        // Extract numerical distance for sorting
+        distanceMiles: extractDistanceMiles(distance)
+    };
+    
+    // Add to route results array
+    routeResults.push(routeData);
+    
+    // Sort and display all route results
+    sortRouteResults();
+}
+
+// Extract duration in minutes from formatted string for sorting
+function extractDurationMinutes(durationText) {
+    // Try to parse out hours and minutes
+    const hoursMatch = durationText.match(/(\d+)\s*hour/);
+    const minutesMatch = durationText.match(/(\d+)\s*min/);
+    
+    let totalMinutes = 0;
+    if (hoursMatch && hoursMatch[1]) {
+        totalMinutes += parseInt(hoursMatch[1]) * 60;
+    }
+    if (minutesMatch && minutesMatch[1]) {
+        totalMinutes += parseInt(minutesMatch[1]);
+    }
+    
+    return totalMinutes;
+}
+
+// Extract distance in miles from formatted string for sorting
+function extractDistanceMiles(distanceText) {
+    const milesMatch = distanceText.match(/(\d+\.?\d*)\s*mi/);
+    if (milesMatch && milesMatch[1]) {
+        return parseFloat(milesMatch[1]);
+    }
+    return 0;
+}
+
+// Sort and display route results
+function sortRouteResults() {
+    // If no results, nothing to sort
+    if (routeResults.length === 0) return;
+    
+    // Get the sort option
+    const sortOption = document.getElementById('sort-results').value;
+    
+    // Sort based on the selected option
+    switch (sortOption) {
+        case 'fromTo':
+            routeResults.sort((a, b) => {
+                // First sort by from label
+                const fromCompare = a.fromLabel.localeCompare(b.fromLabel);
+                if (fromCompare !== 0) return fromCompare;
+                // Then by to label
+                return a.toLabel.localeCompare(b.toLabel);
+            });
+            break;
+        case 'toFrom':
+            routeResults.sort((a, b) => {
+                // First sort by to label
+                const toCompare = a.toLabel.localeCompare(b.toLabel);
+                if (toCompare !== 0) return toCompare;
+                // Then by from label
+                return a.fromLabel.localeCompare(b.fromLabel);
+            });
+            break;
+        case 'duration':
+            routeResults.sort((a, b) => a.durationMinutes - b.durationMinutes);
+            break;
+        case 'distance':
+            routeResults.sort((a, b) => a.distanceMiles - b.distanceMiles);
+            break;
+        default:
+            // Default to fromTo sorting
+            routeResults.sort((a, b) => {
+                const fromCompare = a.fromLabel.localeCompare(b.fromLabel);
+                if (fromCompare !== 0) return fromCompare;
+                return a.toLabel.localeCompare(b.toLabel);
+            });
+    }
+    
+    // Clear the results container
     const resultsContainer = document.getElementById('commute-results');
-    const resultDiv = document.createElement('div');
-    resultDiv.className = 'commute-result';
+    resultsContainer.innerHTML = '';
     
-    // Add a colored indicator if a color is provided
-    const colorStyle = rentalColor ? 
-        `border-left: 3px solid ${rentalColor}; padding-left: 10px;` : 
-        '';
-    
-    resultDiv.innerHTML = `
-        <div style="${colorStyle}">
-        <strong>${rentalLabel} to ${officeLabel}</strong><br>
-        Commute time: ${duration}<br>
-        Distance: ${distance}${additionalInfo ? additionalInfo : ''}
-        </div>
-    `;
-    resultsContainer.appendChild(resultDiv);
+    // Add all sorted results
+    routeResults.forEach(route => {
+        const resultDiv = document.createElement('div');
+        resultDiv.className = 'commute-result';
+        
+        // Add a colored indicator if a color is provided
+        const colorStyle = route.color ? 
+            `border-left: 3px solid ${route.color}; padding-left: 10px;` : 
+            '';
+        
+        resultDiv.innerHTML = `
+            <div style="${colorStyle}">
+            <strong>${route.fromLabel} to ${route.toLabel}</strong><br>
+            Commute time: ${route.duration}<br>
+            Distance: ${route.distance}${route.additionalInfo ? route.additionalInfo : ''}
+            </div>
+        `;
+        resultsContainer.appendChild(resultDiv);
+    });
 }
 
 // Display route error in the results panel
 function displayRouteError(rentalLabel, officeLabel, errorMessage) {
+    // Create an error entry in the results container
     const resultsContainer = document.getElementById('commute-results');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result error';
@@ -849,6 +953,8 @@ function displayRouteError(rentalLabel, officeLabel, errorMessage) {
         <span class="error-message">${errorMessage}</span>
     `;
     resultsContainer.appendChild(resultDiv);
+    
+    // We don't add errors to the routeResults array for sorting
 }
 
 // Clear all markers and routes
@@ -865,6 +971,9 @@ function clearMarkersAndRoutes() {
         polyline.setMap(null);
     });
     routePolylines = [];
+    
+    // Clear route results
+    routeResults = [];
     
     // Clear results
     document.getElementById('commute-results').innerHTML = '';
