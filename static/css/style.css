@@ -273,8 +273,10 @@ input[disabled], select[disabled] {
 
 .commute-result {
     margin-bottom: 15px;
-    padding: 10px;
-    background-color: #f8f9fa;
+    padding: 15px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .commute-result.error {
@@ -430,4 +432,32 @@ input[disabled], select[disabled] {
     border-radius: 4px;
     background-color: white;
     font-size: 14px;
+}
+
+/* Add styling for route headers and toggle */
+.route-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.route-details {
+    margin-top: 5px;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.route-visibility-toggle {
+    margin-right: 5px;
+}
+
+.toggle-label {
+    font-size: 0.8rem;
+    color: #666;
 } 

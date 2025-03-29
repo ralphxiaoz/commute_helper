@@ -659,6 +659,77 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     });
 }
 
+// This simulates what should be a proper server-side API call
+function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor) {
+    console.log("Using mock routes request for:", rentalLabel, "to", officeLabel);
+    
+    // Set up a request for the Google Maps Directions Service
+    const request = {
+        origin: rentalLatLng,
+        destination: officeLatLng,
+        travelMode: google.maps.TravelMode[requestBody.travelMode]
+    };
+    
+    // Add departure time if specified
+    if (requestBody.departureTime) {
+        const travelMode = google.maps.TravelMode[requestBody.travelMode];
+        
+        if (travelMode === google.maps.TravelMode.TRANSIT) {
+            request.transitOptions = {
+                departureTime: new Date(requestBody.departureTime)
+            };
+        } else {
+            request.drivingOptions = {
+                departureTime: new Date(requestBody.departureTime)
+            };
+        }
+    }
+    
+    const directionsService = new google.maps.DirectionsService();
+    
+    directionsService.route(request, (result, status) => {
+        if (status === 'OK') {
+            // Draw the route on the map
+            const routePath = result.routes[0].overview_path;
+            const routePolyline = new google.maps.Polyline({
+                path: routePath,
+                geodesic: true,
+                strokeColor: rentalColor || getRandomColor(),
+                strokeOpacity: 0.8,
+                strokeWeight: 5,
+                map: map
+            });
+            
+            // Store the polyline to clear it later
+            routePolylines.push(routePolyline);
+            
+            // Extract route information
+            const route = result.routes[0].legs[0];
+            const duration = route.duration.text;
+            const distance = route.distance.text;
+            
+            // Add traffic info if departure time was specified
+            let additionalInfo = '';
+            if (requestBody.departureTime) {
+                additionalInfo = '<br><span class="traffic-info">Estimated time for specified departure</span>';
+            }
+            
+            // Display in results panel
+            console.log("Mock route successful:", rentalLabel, officeLabel, duration, distance);
+            displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo, rentalColor);
+            
+            // Make sure the toggle state is applied if toggled before route was calculated
+            const routeIndex = routeResults.length - 1;
+            if (routeIndex >= 0 && !routeResults[routeIndex].visible) {
+                routePolyline.setVisible(false);
+            }
+        } else {
+            console.error("Mock route error:", status, "for", rentalLabel, "to", officeLabel);
+            displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
+        }
+    });
+}
+
 // Process the response from the Routes API
 function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColor) {
     console.log("Processing route response for:", rentalLabel, "to", officeLabel);
@@ -687,6 +758,15 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColo
         
         // Store the polyline for later cleanup
         routePolylines.push(routePolyline);
+        
+        // Make sure the toggle state is applied if toggled before route was calculated
+        const routeIndex = routeResults.length; // This will be the index of the next route that will be added
+        if (routeIndex > 0) {
+            const previousRoute = routeResults[routeIndex - 1];
+            if (previousRoute && !previousRoute.visible) {
+                routePolyline.setVisible(false);
+            }
+        }
     }
     
     // Extract duration and distance information
@@ -760,71 +840,6 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColo
     }
 }
 
-// This simulates what should be a proper server-side API call
-function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor) {
-    console.log("Using mock routes request for:", rentalLabel, "to", officeLabel);
-    
-    // Set up a request for the Google Maps Directions Service
-    const request = {
-        origin: rentalLatLng,
-        destination: officeLatLng,
-        travelMode: google.maps.TravelMode[requestBody.travelMode]
-    };
-    
-    // Add departure time if specified
-    if (requestBody.departureTime) {
-        const travelMode = google.maps.TravelMode[requestBody.travelMode];
-        
-        if (travelMode === google.maps.TravelMode.TRANSIT) {
-            request.transitOptions = {
-                departureTime: new Date(requestBody.departureTime)
-            };
-        } else {
-            request.drivingOptions = {
-                departureTime: new Date(requestBody.departureTime)
-            };
-        }
-    }
-    
-    const directionsService = new google.maps.DirectionsService();
-    
-    directionsService.route(request, (result, status) => {
-        if (status === 'OK') {
-            // Draw the route on the map
-            const routePath = result.routes[0].overview_path;
-            const routePolyline = new google.maps.Polyline({
-                path: routePath,
-                geodesic: true,
-                strokeColor: rentalColor || getRandomColor(),
-                strokeOpacity: 0.8,
-                strokeWeight: 5,
-                map: map
-            });
-            
-            // Store the polyline to clear it later
-            routePolylines.push(routePolyline);
-            
-            // Extract route information
-            const route = result.routes[0].legs[0];
-            const duration = route.duration.text;
-            const distance = route.distance.text;
-            
-            // Add traffic info if departure time was specified
-            let additionalInfo = '';
-            if (requestBody.departureTime) {
-                additionalInfo = '<br><span class="traffic-info">Estimated time for specified departure</span>';
-            }
-            
-            // Display in results panel
-            console.log("Mock route successful:", rentalLabel, officeLabel, duration, distance);
-            displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo, rentalColor);
-        } else {
-            console.error("Mock route error:", status, "for", rentalLabel, "to", officeLabel);
-            displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
-        }
-    });
-}
-
 // Display route information in the results panel
 function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '', rentalColor = null) {
     // Store the route data for sorting
@@ -838,7 +853,11 @@ function displayRouteInfo(rentalLabel, officeLabel, duration, distance, addition
         // Extract numerical duration for sorting
         durationMinutes: extractDurationMinutes(duration),
         // Extract numerical distance for sorting
-        distanceMiles: extractDistanceMiles(distance)
+        distanceMiles: extractDistanceMiles(distance),
+        // Add visibility property (default to visible)
+        visible: true,
+        // Add unique ID for this route
+        routeId: `route-${routeResults.length}`
     };
     
     // Add to route results array
@@ -875,15 +894,15 @@ function extractDistanceMiles(distanceText) {
 }
 
 // Sort and display route results
-function sortRouteResults() {
+function sortRouteResults(sortOption) {
     // If no results, nothing to sort
     if (routeResults.length === 0) return;
     
-    // Get the sort option
-    const sortOption = document.getElementById('sort-results').value;
+    // Get the sort option from parameter or DOM
+    const sortBy = sortOption || document.getElementById('sort-results').value;
     
     // Sort based on the selected option
-    switch (sortOption) {
+    switch (sortBy) {
         case 'fromTo':
             routeResults.sort((a, b) => {
                 // First sort by from label
@@ -917,29 +936,63 @@ function sortRouteResults() {
             });
     }
     
-    // Clear the results container
-    const resultsContainer = document.getElementById('commute-results');
-    resultsContainer.innerHTML = '';
+    // Don't update the DOM if we're just testing
+    if (!sortOption) {
+        // Clear the results container
+        const resultsContainer = document.getElementById('commute-results');
+        resultsContainer.innerHTML = '';
+        
+        // Add all sorted results
+        routeResults.forEach((route, index) => {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'commute-result';
+            resultDiv.setAttribute('data-route-id', route.routeId);
+            
+            // Add a colored indicator if a color is provided
+            const colorStyle = route.color ? 
+                `border-left: 3px solid ${route.color}; padding-left: 10px;` : 
+                '';
+            
+            // Create visibility toggle checkbox
+            const checked = route.visible ? 'checked' : '';
+            
+            resultDiv.innerHTML = `
+                <div style="${colorStyle}">
+                <div class="route-header">
+                    <strong>${route.fromLabel} to ${route.toLabel}</strong>
+                    <label class="toggle-container">
+                        <input type="checkbox" class="route-visibility-toggle" ${checked}>
+                        <span class="toggle-label">Show</span>
+                    </label>
+                </div>
+                <div class="route-details">
+                    Commute time: ${route.duration}<br>
+                    Distance: ${route.distance}${route.additionalInfo ? route.additionalInfo : ''}
+                </div>
+                </div>
+            `;
+            
+            // Add event listener for visibility toggle
+            resultsContainer.appendChild(resultDiv);
+            
+            // Add event listener after appending to DOM
+            const toggleCheckbox = resultDiv.querySelector('.route-visibility-toggle');
+            toggleCheckbox.addEventListener('change', function() {
+                toggleRouteVisibility(index, this.checked);
+            });
+        });
+    }
+}
+
+// Toggle route visibility on the map
+function toggleRouteVisibility(routeIndex, isVisible) {
+    // Update the route's visibility state
+    routeResults[routeIndex].visible = isVisible;
     
-    // Add all sorted results
-    routeResults.forEach(route => {
-        const resultDiv = document.createElement('div');
-        resultDiv.className = 'commute-result';
-        
-        // Add a colored indicator if a color is provided
-        const colorStyle = route.color ? 
-            `border-left: 3px solid ${route.color}; padding-left: 10px;` : 
-            '';
-        
-        resultDiv.innerHTML = `
-            <div style="${colorStyle}">
-            <strong>${route.fromLabel} to ${route.toLabel}</strong><br>
-            Commute time: ${route.duration}<br>
-            Distance: ${route.distance}${route.additionalInfo ? route.additionalInfo : ''}
-            </div>
-        `;
-        resultsContainer.appendChild(resultDiv);
-    });
+    // Update the polyline visibility on the map
+    if (routePolylines[routeIndex]) {
+        routePolylines[routeIndex].setVisible(isVisible);
+    }
 }
 
 // Display route error in the results panel
@@ -1110,4 +1163,37 @@ function initDestinationAutocomplete(inputElement) {
             }
         }
     });
+}
+
+// Expose functions for testing (will only run in Node.js environment, not in browser)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    // Core utility functions
+    extractDurationMinutes,
+    extractDistanceMiles,
+    getRandomColor,
+    
+    // Button management functions
+    updateRemoveButton,
+    updateDestinationRemoveButton,
+    
+    // Route management functions
+    sortRouteResults,
+    displayRouteInfo,
+    displayRouteError,
+    toggleRouteVisibility,
+    
+    // Helper functions
+    formatMarkerLabel,
+    formatResultLabel,
+    
+    // Make globals available for testing
+    getGlobals: () => ({
+      routeResults,
+      markers,
+      routePolylines,
+      nextRentalId,
+      nextDestinationId
+    })
+  };
 } 
