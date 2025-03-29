@@ -239,6 +239,7 @@ function addRental() {
     // Create input elements with consistent classes (no remove button)
     rentalDiv.innerHTML = `
         <div class="input-with-label">
+            <input type="color" class="rental-color" value="${getRandomColor()}">
             <input type="text" class="rental-location address-input" placeholder="Enter starting address">
             <input type="text" class="rental-label location-label" placeholder="label">
         </div>
@@ -312,9 +313,11 @@ function calculateRoutes() {
         .map(div => {
             const locationInput = div.querySelector('.rental-location');
             const labelInput = div.querySelector('.rental-label');
+            const colorInput = div.querySelector('.rental-color');
             return {
                 address: locationInput.value.trim(),
-                label: labelInput.value.trim()
+                label: labelInput.value.trim(),
+                color: colorInput.value
             };
         })
         .filter(data => data.address !== '');
@@ -358,10 +361,10 @@ function calculateRoutes() {
             geocodeAddress(rental.address, (rentalLatLng) => {
                 // Add starting point marker with custom label if provided
                 const displayLabel = rental.label || rental.address;
-                addMarker(rentalLatLng, 'rental', displayLabel, rental.address);
+                addMarker(rentalLatLng, 'rental', displayLabel, rental.address, rental.color);
                 
                 // Calculate route using Routes API
-                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address, displayOfficeLabel, officeLocation);
+                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address, displayOfficeLabel, officeLocation, rental.color);
             });
         });
     });
@@ -380,7 +383,7 @@ function geocodeAddress(address, callback) {
 }
 
 // Add a marker to the map
-function addMarker(position, type, label, address) {
+function addMarker(position, type, label, address, color = null) {
     const markerOptions = {
         position: position,
         map: map,
@@ -402,7 +405,7 @@ function addMarker(position, type, label, address) {
         markerOptions.icon = {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 10,
-            fillColor: '#DB4437',
+            fillColor: color || getRandomColor(),
             fillOpacity: 1,
             strokeWeight: 2,
             strokeColor: '#FFF'
@@ -445,7 +448,7 @@ function addMarker(position, type, label, address) {
 }
 
 // Calculate route between destination and starting point
-function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress, officeLabel, officeLocation) {
+function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress, officeLabel, officeLocation, rentalColor) {
     console.log("Calculating route from", rentalLabel, "to", officeLabel);
     
     // Get departure time and travel mode from the UI
@@ -542,7 +545,7 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     .then(data => {
         if (data.routes && data.routes.length > 0) {
             console.log("Routes API returned data");
-            processRoutesAPIResponse(data, rentalLabel, officeLabel);
+            processRoutesAPIResponse(data, rentalLabel, officeLabel, rentalColor);
         } else if (data.error) {
             console.error("Routes API Error:", data.error);
             
@@ -560,13 +563,13 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
             alert(errorMsg);
             
             // Fallback to mock implementation if there's an error
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor);
         } else {
             console.error("Unexpected Routes API response:", JSON.stringify(data, null, 2));
             console.log("Falling back to mock implementation due to unexpected response");
             alert(`Could not calculate route for ${rentalLabel}. Please try again.`);
             // Fallback to mock implementation
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor);
         }
     })
     .catch(error => {
@@ -574,12 +577,12 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
         console.log("Falling back to mock implementation due to network error");
         alert(`Network error when calculating route for ${rentalLabel}. Please check your connection and try again.`);
         // Fallback to mock implementation
-        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
+        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor);
     });
 }
 
 // Process the response from the Routes API
-function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
+function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColor) {
     console.log("Processing route response for:", rentalLabel, "to", officeLabel);
     console.log("Response:", response);
     
@@ -598,7 +601,7 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
         const routePolyline = new google.maps.Polyline({
             path: decodedPath,
             geodesic: true,
-            strokeColor: getRandomColor(),
+            strokeColor: rentalColor || getRandomColor(),
             strokeOpacity: 0.8,
             strokeWeight: 5,
             map: map
@@ -673,14 +676,14 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
         
         // Display the information with traffic and transit details if available
         console.log("Displaying route info:", rentalLabel, officeLabel, durationText, distanceText);
-        displayRouteInfo(rentalLabel, officeLabel, durationText, distanceText, trafficText + transitText);
+        displayRouteInfo(rentalLabel, officeLabel, durationText, distanceText, trafficText + transitText, rentalColor);
     } else {
         console.error("Missing duration or distance data in route:", route);
     }
 }
 
 // This simulates what should be a proper server-side API call
-function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation) {
+function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation, rentalColor) {
     console.log("Using mock routes request for:", rentalLabel, "to", officeLabel);
     
     // Set up a request for the Google Maps Directions Service
@@ -714,7 +717,7 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
             const routePolyline = new google.maps.Polyline({
                 path: routePath,
                 geodesic: true,
-                strokeColor: getRandomColor(),
+                strokeColor: rentalColor || getRandomColor(),
                 strokeOpacity: 0.8,
                 strokeWeight: 5,
                 map: map
@@ -736,7 +739,7 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
             
             // Display in results panel
             console.log("Mock route successful:", rentalLabel, officeLabel, duration, distance);
-            displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo);
+            displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo, rentalColor);
         } else {
             console.error("Mock route error:", status, "for", rentalLabel, "to", officeLabel);
             displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
@@ -745,14 +748,22 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
 }
 
 // Display route information in the results panel
-function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '') {
+function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '', rentalColor = null) {
     const resultsContainer = document.getElementById('commute-results');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result';
+    
+    // Add a colored indicator if a color is provided
+    const colorStyle = rentalColor ? 
+        `border-left: 3px solid ${rentalColor}; padding-left: 10px;` : 
+        '';
+    
     resultDiv.innerHTML = `
+        <div style="${colorStyle}">
         <strong>${rentalLabel} to ${officeLabel}</strong><br>
         Commute time: ${duration}<br>
         Distance: ${distance}${additionalInfo ? additionalInfo : ''}
+        </div>
     `;
     resultsContainer.appendChild(resultDiv);
 }
