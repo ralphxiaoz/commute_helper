@@ -111,8 +111,37 @@ function initMap() {
 
 // Set up all event listeners
 function setupEventListeners() {
+    console.log("Setting up event listeners");
+    
+    // Route calculation button
+    const calculateButton = document.getElementById('calculate-routes');
+    if (calculateButton) {
+        calculateButton.addEventListener('click', calculateRoutes);
+    }
+    
     // Add rental button
-    document.getElementById('add-rental').addEventListener('click', addRental);
+    const addRentalButton = document.getElementById('add-rental');
+    if (addRentalButton) {
+        addRentalButton.addEventListener('click', addRental);
+    }
+    
+    // Add destination button
+    const addDestinationButton = document.getElementById('add-destination');
+    if (addDestinationButton) {
+        addDestinationButton.addEventListener('click', addDestination);
+    }
+    
+    // Sort dropdown
+    const sortDropdown = document.getElementById('sort-results');
+    if (sortDropdown) {
+        console.log("Adding event listener to sort dropdown:", sortDropdown);
+        sortDropdown.addEventListener('change', function() {
+            console.log("Sort dropdown changed to:", this.value);
+            sortRouteResults(this.value);
+        });
+    } else {
+        console.error("Could not find sort-results dropdown");
+    }
     
     // Remove rental button (the main one in the header)
     document.getElementById('remove-rental').addEventListener('click', () => {
@@ -129,9 +158,6 @@ function setupEventListeners() {
         }
     });
     
-    // Add destination button
-    document.getElementById('add-destination').addEventListener('click', addDestination);
-    
     // Remove destination button
     document.getElementById('remove-destination').addEventListener('click', () => {
         const destinationInputs = document.querySelectorAll('.destination-input');
@@ -146,12 +172,6 @@ function setupEventListeners() {
             updateDestinationRemoveButton();
         }
     });
-    
-    // Calculate routes button
-    document.getElementById('calculate-routes').addEventListener('click', calculateRoutes);
-    
-    // Sort results dropdown
-    document.getElementById('sort-results').addEventListener('change', sortRouteResults);
     
     // Leave by checkbox
     const leaveByCheckbox = document.getElementById('leave-by-checkbox');
@@ -220,6 +240,9 @@ function setupEventListeners() {
             handleDestinationKeypress(e);
         }
     });
+    
+    // Add other event listeners as needed
+    console.log("Event listeners setup complete");
 }
 
 // Handle Enter key on rental inputs
@@ -718,11 +741,8 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
             console.log("Mock route successful:", rentalLabel, officeLabel, duration, distance);
             displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo, rentalColor);
             
-            // Make sure the toggle state is applied if toggled before route was calculated
-            const routeIndex = routeResults.length - 1;
-            if (routeIndex >= 0 && !routeResults[routeIndex].visible) {
-                routePolyline.setVisible(false);
-            }
+            // No need to manually update visibility here anymore
+            // The polyline is directly linked to the route object
         } else {
             console.error("Mock route error:", status, "for", rentalLabel, "to", officeLabel);
             displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
@@ -759,14 +779,8 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColo
         // Store the polyline for later cleanup
         routePolylines.push(routePolyline);
         
-        // Make sure the toggle state is applied if toggled before route was calculated
-        const routeIndex = routeResults.length; // This will be the index of the next route that will be added
-        if (routeIndex > 0) {
-            const previousRoute = routeResults[routeIndex - 1];
-            if (previousRoute && !previousRoute.visible) {
-                routePolyline.setVisible(false);
-            }
-        }
+        // No need to manually update visibility here anymore
+        // The polyline is directly linked to the route object in displayRouteInfo
     }
     
     // Extract duration and distance information
@@ -842,6 +856,9 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel, rentalColo
 
 // Display route information in the results panel
 function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '', rentalColor = null) {
+    // Get the latest polyline (the one that was just added)
+    const routePolyline = routePolylines.length > 0 ? routePolylines[routePolylines.length - 1] : null;
+    
     // Store the route data for sorting
     const routeData = {
         fromLabel: rentalLabel,
@@ -857,7 +874,9 @@ function displayRouteInfo(rentalLabel, officeLabel, duration, distance, addition
         // Add visibility property (default to visible)
         visible: true,
         // Add unique ID for this route
-        routeId: `route-${routeResults.length}`
+        routeId: `route-${routeResults.length}`,
+        // Store direct reference to the polyline
+        polyline: routePolyline
     };
     
     // Add to route results array
@@ -895,15 +914,26 @@ function extractDistanceMiles(distanceText) {
 
 // Sort and display route results
 function sortRouteResults(sortOption) {
+    console.log("Sorting route results with current options:", sortOption);
+    
     // If no results, nothing to sort
-    if (routeResults.length === 0) return;
+    if (routeResults.length === 0) {
+        console.log("No route results to sort");
+        return;
+    }
     
     // Get the sort option from parameter or DOM
-    const sortBy = sortOption || document.getElementById('sort-results').value;
+    const sortSelect = document.getElementById('sort-results');
+    const sortBy = sortOption || (sortSelect ? sortSelect.value : 'fromTo');
+    console.log("Using sort option:", sortBy, "Routes count:", routeResults.length);
+    
+    // Debug current route results
+    console.log("Current route results:", routeResults.map(r => `${r.fromLabel} to ${r.toLabel}`));
     
     // Sort based on the selected option
     switch (sortBy) {
         case 'fromTo':
+            console.log("Sorting by from label then to label");
             routeResults.sort((a, b) => {
                 // First sort by from label
                 const fromCompare = a.fromLabel.localeCompare(b.fromLabel);
@@ -913,6 +943,7 @@ function sortRouteResults(sortOption) {
             });
             break;
         case 'toFrom':
+            console.log("Sorting by to label then from label");
             routeResults.sort((a, b) => {
                 // First sort by to label
                 const toCompare = a.toLabel.localeCompare(b.toLabel);
@@ -922,13 +953,15 @@ function sortRouteResults(sortOption) {
             });
             break;
         case 'duration':
+            console.log("Sorting by duration");
             routeResults.sort((a, b) => a.durationMinutes - b.durationMinutes);
             break;
         case 'distance':
+            console.log("Sorting by distance");
             routeResults.sort((a, b) => a.distanceMiles - b.distanceMiles);
             break;
         default:
-            // Default to fromTo sorting
+            console.log("Using default sort (fromTo)");
             routeResults.sort((a, b) => {
                 const fromCompare = a.fromLabel.localeCompare(b.fromLabel);
                 if (fromCompare !== 0) return fromCompare;
@@ -936,11 +969,19 @@ function sortRouteResults(sortOption) {
             });
     }
     
+    console.log("Sorted route results:", routeResults.map(r => `${r.fromLabel} to ${r.toLabel}`));
+    
     // Don't update the DOM if we're just testing
-    if (!sortOption) {
+    if (!sortOption || typeof sortOption === 'string') {
         // Clear the results container
         const resultsContainer = document.getElementById('commute-results');
+        if (!resultsContainer) {
+            console.error("Could not find commute-results container");
+            return;
+        }
+        
         resultsContainer.innerHTML = '';
+        console.log("Cleared results container, now adding sorted results");
         
         // Add all sorted results
         routeResults.forEach((route, index) => {
@@ -953,7 +994,7 @@ function sortRouteResults(sortOption) {
                 `border-left: 3px solid ${route.color}; padding-left: 10px;` : 
                 '';
             
-            // Create visibility toggle checkbox
+            // Create visibility toggle checkbox with the route's current visibility state
             const checked = route.visible ? 'checked' : '';
             
             resultDiv.innerHTML = `
@@ -972,26 +1013,35 @@ function sortRouteResults(sortOption) {
                 </div>
             `;
             
-            // Add event listener for visibility toggle
             resultsContainer.appendChild(resultDiv);
             
             // Add event listener after appending to DOM
             const toggleCheckbox = resultDiv.querySelector('.route-visibility-toggle');
             toggleCheckbox.addEventListener('change', function() {
+                // Pass the actual route index in the sorted array
                 toggleRouteVisibility(index, this.checked);
             });
+            
+            // Apply the current visibility state to the route's polyline
+            if (route.polyline) {
+                route.polyline.setVisible(route.visible);
+            }
         });
+        
+        console.log("Finished rendering sorted results");
     }
 }
 
 // Toggle route visibility on the map
 function toggleRouteVisibility(routeIndex, isVisible) {
-    // Update the route's visibility state
-    routeResults[routeIndex].visible = isVisible;
+    const route = routeResults[routeIndex];
     
-    // Update the polyline visibility on the map
-    if (routePolylines[routeIndex]) {
-        routePolylines[routeIndex].setVisible(isVisible);
+    // Update the route's visibility state
+    route.visible = isVisible;
+    
+    // Update the polyline visibility on the map using the direct reference
+    if (route.polyline) {
+        route.polyline.setVisible(isVisible);
     }
 }
 
@@ -1164,6 +1214,14 @@ function initDestinationAutocomplete(inputElement) {
         }
     });
 }
+
+// Call setupEventListeners when the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM content loaded, setting up event listeners");
+    setupEventListeners();
+});
+
+console.log("map.js loaded and ready for initialization");
 
 // Expose functions for testing (will only run in Node.js environment, not in browser)
 if (typeof module !== 'undefined' && module.exports) {
