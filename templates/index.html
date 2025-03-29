@@ -80,7 +80,11 @@
             </div>
             
             <div class="location-section" id="rentals-container">
-                <h2>From</h2>
+                <div class="section-header">
+                    <h2>From</h2>
+                    <button id="add-rental" title="Add location">+</button>
+                    <button id="remove-rental" class="remove-rental" style="display: none;" title="Remove location">−</button>
+                </div>
                 <div class="rental-inputs" id="rental-inputs">
                     <!-- Rental inputs will be added here dynamically -->
                     <div class="rental-input primary-rental" data-id="1">
@@ -88,10 +92,8 @@
                             <input type="text" class="rental-location address-input" placeholder="Enter starting address">
                             <input type="text" class="rental-label location-label" placeholder="label">
                         </div>
-                        <button class="remove-rental" style="display: none;">Remove</button>
                     </div>
                 </div>
-                <button id="add-rental">Add more</button>
             </div>
             
             <button id="calculate-routes">Calculate Routes</button>

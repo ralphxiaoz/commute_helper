@@ -8,6 +8,7 @@ let routePolylines = []; // To store route polylines instead of directionsRender
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     setupEventListeners();
+    updateRemoveButton(); // Initialize remove button visibility
 });
 
 // Initialize Google Map
@@ -119,18 +120,18 @@ function setupEventListeners() {
     // Add rental button
     document.getElementById('add-rental').addEventListener('click', addRental);
     
-    // Remove rental buttons (for the initial one and all future ones)
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('remove-rental')) {
-            const rentalDiv = e.target.closest('.rental-input');
-            
-            // Don't allow removal if it's the primary rental or if it's the last remaining rental
-            if (rentalDiv.classList.contains('primary-rental')) {
-                return; // Don't remove the primary rental
-            }
-            
-            // Proceed with removal for non-primary rentals
-            rentalDiv.remove();
+    // Remove rental button (the main one in the header)
+    document.getElementById('remove-rental').addEventListener('click', () => {
+        const rentalInputs = document.querySelectorAll('.rental-input');
+        if (rentalInputs.length <= 1) {
+            return; // Don't remove if there's only one rental input
+        }
+        
+        // Get the last non-primary rental input and remove it
+        const lastRental = rentalInputs[rentalInputs.length - 1];
+        if (!lastRental.classList.contains('primary-rental')) {
+            lastRental.remove();
+            updateRemoveButton();
         }
     });
     
@@ -235,13 +236,12 @@ function addRental() {
     rentalDiv.className = 'rental-input';
     rentalDiv.dataset.id = nextRentalId++;
     
-    // Create input and button elements with consistent classes
+    // Create input elements with consistent classes (no remove button)
     rentalDiv.innerHTML = `
         <div class="input-with-label">
             <input type="text" class="rental-location address-input" placeholder="Enter starting address">
             <input type="text" class="rental-label location-label" placeholder="label">
         </div>
-        <button class="remove-rental">Remove</button>
     `;
     
     // Add to container
@@ -249,6 +249,23 @@ function addRental() {
     
     // Initialize autocomplete for the new input
     initRentalAutocomplete(rentalDiv.querySelector('.rental-location'));
+    
+    // Show the main remove button when we have more than one rental input
+    updateRemoveButton();
+}
+
+// Helper function to show/hide the remove button based on number of rental inputs
+function updateRemoveButton() {
+    const rentalInputs = document.querySelectorAll('.rental-input');
+    const removeButton = document.getElementById('remove-rental');
+    
+    if (rentalInputs.length > 1) {
+        // Show the remove button when there's more than one rental input
+        removeButton.style.display = 'block';
+    } else {
+        // Hide the remove button if there's only one rental input
+        removeButton.style.display = 'none';
+    }
 }
 
 // Initialize autocomplete for a rental input
@@ -428,7 +445,9 @@ function addMarker(position, type, label, address) {
 }
 
 // Calculate route between destination and starting point
-function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress, officeLabel, officeAddress) {
+function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress, officeLabel, officeLocation) {
+    console.log("Calculating route from", rentalLabel, "to", officeLabel);
+    
     // Get departure time and travel mode from the UI
     const departureDate = document.getElementById('departure-date');
     const departureHour = document.getElementById('departure-hour');
@@ -440,6 +459,7 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     
     // For transit mode, departure time is required
     if (selectedMode === "TRANSIT" && !leaveByCheckbox.checked) {
+        console.error("Transit mode requires departure time");
         displayRouteError(rentalLabel, officeLabel, "Departure time is required for public transit routes");
         return;
     }
@@ -502,6 +522,8 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     }
     // For driving without "Leave by" checked, use current traffic without specifying departureTime
     
+    console.log("Route request body:", requestBody);
+    
     // Call our server-side API endpoint
     fetch('/api/route', {
         method: 'POST',
@@ -519,6 +541,7 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     })
     .then(data => {
         if (data.routes && data.routes.length > 0) {
+            console.log("Routes API returned data");
             processRoutesAPIResponse(data, rentalLabel, officeLabel);
         } else if (data.error) {
             console.error("Routes API Error:", data.error);
@@ -533,28 +556,35 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
             if (data.details && data.details.error && data.details.error.message) {
                 errorMsg += `\nDetails: ${data.details.error.message}`;
             }
+            console.log("Falling back to mock implementation due to error");
             alert(errorMsg);
             
             // Fallback to mock implementation if there's an error
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
         } else {
             console.error("Unexpected Routes API response:", JSON.stringify(data, null, 2));
+            console.log("Falling back to mock implementation due to unexpected response");
             alert(`Could not calculate route for ${rentalLabel}. Please try again.`);
             // Fallback to mock implementation
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
         }
     })
     .catch(error => {
         console.error("Error calling Routes API:", error);
+        console.log("Falling back to mock implementation due to network error");
         alert(`Network error when calculating route for ${rentalLabel}. Please check your connection and try again.`);
         // Fallback to mock implementation
-        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
+        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation);
     });
 }
 
 // Process the response from the Routes API
 function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
+    console.log("Processing route response for:", rentalLabel, "to", officeLabel);
+    console.log("Response:", response);
+    
     if (!response.routes || response.routes.length === 0) {
+        console.error(`No route found for ${rentalLabel} to ${officeLabel}`);
         alert(`No route found for ${rentalLabel}`);
         return;
     }
@@ -640,63 +670,30 @@ function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
         
         // Check for transit details
         let transitText = '';
-        if (route.legs && route.legs.length > 0) {
-            const leg = route.legs[0];
-            if (leg.steps) {
-                // Count transit segments
-                const transitSteps = leg.steps.filter(step => 
-                    step.transitDetails && step.transitDetails.transitLine);
-                
-                if (transitSteps.length > 0) {
-                    transitText = `<br>Transit: ${transitSteps.length} segment${transitSteps.length > 1 ? 's' : ''}`;
-                    
-                    // Add details for each transit line
-                    transitSteps.forEach((step, index) => {
-                        const line = step.transitDetails.transitLine;
-                        if (line && line.nameShort) {
-                            transitText += `<br>- ${line.nameShort} ${line.name || ''}`;
-                        }
-                    });
-                }
-            }
-        }
         
         // Display the information with traffic and transit details if available
+        console.log("Displaying route info:", rentalLabel, officeLabel, durationText, distanceText);
         displayRouteInfo(rentalLabel, officeLabel, durationText, distanceText, trafficText + transitText);
+    } else {
+        console.error("Missing duration or distance data in route:", route);
     }
 }
 
 // This simulates what should be a proper server-side API call
-function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel) {
-    // For now, we'll use the existing Google Maps JS SDK to calculate a route
-    // This is a fallback until we implement the proper Routes API integration
+function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel, officeLocation) {
+    console.log("Using mock routes request for:", rentalLabel, "to", officeLabel);
     
-    // Map our travel mode to Google Maps travel mode
-    let travelMode = google.maps.TravelMode.DRIVING;
-    switch (requestBody.travelMode) {
-        case "BICYCLE":
-            travelMode = google.maps.TravelMode.BICYCLING;
-            break;
-        case "WALK":
-            travelMode = google.maps.TravelMode.WALKING;
-            break;
-        case "TWO_WHEELER":
-            // Fallback to BICYCLING for TWO_WHEELER since Maps JS API doesn't have this mode
-            travelMode = google.maps.TravelMode.BICYCLING;
-            break;
-        case "TRANSIT":
-            travelMode = google.maps.TravelMode.TRANSIT;
-            break;
-    }
-    
+    // Set up a request for the Google Maps Directions Service
     const request = {
         origin: rentalLatLng,
         destination: officeLatLng,
-        travelMode: travelMode
+        travelMode: google.maps.TravelMode[requestBody.travelMode]
     };
     
-    // Add departure time if specified in the original request
+    // Add departure time if specified
     if (requestBody.departureTime) {
+        const travelMode = google.maps.TravelMode[requestBody.travelMode];
+        
         if (travelMode === google.maps.TravelMode.TRANSIT) {
             request.transitOptions = {
                 departureTime: new Date(requestBody.departureTime)
@@ -738,35 +735,22 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
             }
             
             // Display in results panel
+            console.log("Mock route successful:", rentalLabel, officeLabel, duration, distance);
             displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo);
         } else {
+            console.error("Mock route error:", status, "for", rentalLabel, "to", officeLabel);
             displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
         }
     });
 }
 
 // Display route information in the results panel
-function displayRouteInfo(fromLabel, toLabel, duration, distance, additionalInfo = '') {
-    // Debug logging to help diagnose transit display issues
-    console.log('Adding route info to display:', {
-        fromLabel, 
-        toLabel, 
-        duration, 
-        distance, 
-        hasAdditionalInfo: !!additionalInfo,
-        additionalInfoLength: additionalInfo ? additionalInfo.length : 0,
-        travelMode: document.getElementById('travel-mode').value
-    });
-    
+function displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo = '') {
     const resultsContainer = document.getElementById('commute-results');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result';
-    
-    // Format the header to always include both from and to locations
-    let routeHeader = `${fromLabel} to ${toLabel}`;
-    
     resultDiv.innerHTML = `
-        <strong>${routeHeader}</strong><br>
+        <strong>${rentalLabel} to ${officeLabel}</strong><br>
         Commute time: ${duration}<br>
         Distance: ${distance}${additionalInfo ? additionalInfo : ''}
     `;
