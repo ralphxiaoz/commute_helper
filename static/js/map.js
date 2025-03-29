@@ -502,6 +502,15 @@ function addMarker(position, type, label, address, color = null) {
             strokeWeight: 2,
             strokeColor: '#FFF'
         };
+        
+        // Add label directly to marker for destinations
+        markerOptions.label = {
+            text: label,
+            color: '#333333',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            className: 'marker-label'
+        };
     } else {
         markerOptions.icon = {
             path: google.maps.SymbolPath.CIRCLE,
@@ -511,22 +520,27 @@ function addMarker(position, type, label, address, color = null) {
             strokeWeight: 2,
             strokeColor: '#FFF'
         };
+        
+        // Add label directly to marker for starting points
+        markerOptions.label = {
+            text: label,
+            color: '#333333',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            className: 'marker-label'
+        };
     }
     
     // Create marker
     const marker = new google.maps.Marker(markerOptions);
     
-    // Create label
+    // Create a minimal infoWindow for click interaction, but keep it closed by default
     const infoWindow = new google.maps.InfoWindow({
-        content: `<div class="${type}-marker-label">${label}</div>`,
-        pixelOffset: new google.maps.Size(0, -5),
+        content: `<div class="${type}-marker-info">${label}<br>${address}</div>`,
         disableAutoPan: true
     });
     
-    // Open the info window immediately and keep it open
-    infoWindow.open(map, marker);
-    
-    // Add click event to the marker
+    // Add click event to the marker to show full address
     marker.addListener('click', function() {
         // Close any open info windows first
         markers.forEach(m => {
