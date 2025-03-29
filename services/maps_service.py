@@ -10,7 +10,7 @@ def calculate_route(origin, destination, travel_mode="DRIVE", routing_preference
     Args:
         origin (dict): Origin location with latLng containing latitude and longitude
         destination (dict): Destination location with latLng containing latitude and longitude
-        travel_mode (str): Mode of travel (DRIVE, WALK, BICYCLE, TRANSIT, TWO_WHEELER)
+        travel_mode (str): Mode of travel (DRIVE, WALK, BICYCLE, TRANSIT)
         routing_preference (str): Routing preference (TRAFFIC_AWARE, TRAFFIC_UNAWARE)
         departure_time (str, optional): ISO 8601 formatted departure time
         
@@ -19,7 +19,7 @@ def calculate_route(origin, destination, travel_mode="DRIVE", routing_preference
     """
     try:
         # Validate travel mode
-        valid_travel_modes = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"]
+        valid_travel_modes = ["DRIVE", "WALK", "BICYCLE", "TRANSIT"]
         if travel_mode not in valid_travel_modes:
             logger.error(f"Invalid travel mode: {travel_mode}")
             return {"error": f"Invalid travel mode: {travel_mode}. Must be one of {valid_travel_modes}"}, 400

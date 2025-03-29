@@ -399,7 +399,7 @@ function calculateRoutes() {
     
     // Show warning for beta travel modes
     const selectedMode = document.getElementById('travel-mode').value;
-    const betaModes = ["WALK", "BICYCLE", "TWO_WHEELER"];
+    const betaModes = ["WALK", "BICYCLE"];
     
     if (betaModes.includes(selectedMode)) {
         // Display warning in the results panel
@@ -409,7 +409,7 @@ function calculateRoutes() {
         warningDiv.innerHTML = `
             <div class="warning-icon">⚠️</div>
             <div class="warning-text">
-                ${selectedMode === "WALK" ? "Walking" : selectedMode === "BICYCLE" ? "Bicycling" : "Two-wheeled vehicle"} 
+                ${selectedMode === "WALK" ? "Walking" : "Bicycling"} 
                 routes are in beta and might sometimes be missing clear sidewalks, pedestrian paths, or bicycling paths.
             </div>
         `;
