@@ -2,13 +2,15 @@
 let map;
 let markers = [];
 let nextRentalId = 2; // Start with 2 since we have 1 in the HTML
-let routePolylines = []; // To store route polylines instead of directionsRenderers
+let nextDestinationId = 2; // Start with 2 since we have 1 in the HTML
+let routePolylines = []; // To store route polylines
 
 // Initialize when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     initMap();
     setupEventListeners();
     updateRemoveButton(); // Initialize remove button visibility
+    updateDestinationRemoveButton(); // Initialize destination remove button visibility
 });
 
 // Initialize Google Map
@@ -99,17 +101,8 @@ function initMap() {
         showLocationNotification("Your browser doesn't support geolocation. Using default location.", true);
     }
     
-    // Initialize autocomplete for the office location
-    const officeInput = document.getElementById('office-location');
-    const officeAutocomplete = new google.maps.places.Autocomplete(officeInput);
-    
-    // Add place_changed listener to handle office selection
-    officeAutocomplete.addListener('place_changed', function() {
-        const place = officeAutocomplete.getPlace();
-        if (place.formatted_address) {
-            officeInput.value = place.formatted_address;
-        }
-    });
+    // Initialize autocomplete for the initial destination location
+    initDestinationAutocomplete(document.querySelector('.destination-location'));
     
     // Initialize autocomplete for the first rental
     initRentalAutocomplete(document.querySelector('.rental-location'));
@@ -132,6 +125,24 @@ function setupEventListeners() {
         if (!lastRental.classList.contains('primary-rental')) {
             lastRental.remove();
             updateRemoveButton();
+        }
+    });
+    
+    // Add destination button
+    document.getElementById('add-destination').addEventListener('click', addDestination);
+    
+    // Remove destination button
+    document.getElementById('remove-destination').addEventListener('click', () => {
+        const destinationInputs = document.querySelectorAll('.destination-input');
+        if (destinationInputs.length <= 1) {
+            return; // Don't remove if there's only one destination input
+        }
+        
+        // Get the last non-primary destination input and remove it
+        const lastDestination = destinationInputs[destinationInputs.length - 1];
+        if (!lastDestination.classList.contains('primary-destination')) {
+            lastDestination.remove();
+            updateDestinationRemoveButton();
         }
     });
     
@@ -188,21 +199,21 @@ function setupEventListeners() {
         }
     });
     
-    // Add keyboard event listeners for enter key
-    document.getElementById('office-location').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            document.querySelector('.rental-location').focus();
-        }
+    // Add keyboard event listeners for enter key in destination fields
+    document.querySelectorAll('.destination-location').forEach(input => {
+        input.addEventListener('keypress', handleDestinationKeypress);
     });
     
-    // Add keyboard event for the initial rental input
+    // Add keyboard event listeners for enter key in rental fields
     document.querySelector('.rental-location').addEventListener('keypress', handleRentalKeypress);
     
-    // Event delegation for dynamically added rental inputs
+    // Event delegation for dynamically added inputs
     document.addEventListener('keypress', (e) => {
         if (e.target.classList.contains('rental-location') && e.key === 'Enter') {
             handleRentalKeypress(e);
+        }
+        if (e.target.classList.contains('destination-location') && e.key === 'Enter') {
+            handleDestinationKeypress(e);
         }
     });
 }
@@ -220,6 +231,26 @@ function handleRentalKeypress(e) {
             // If this is the last rental input, add a new one and focus on it
             addRental();
             const newInput = document.querySelector('.rental-input:last-child .rental-location');
+            if (newInput) {
+                newInput.focus();
+            }
+        }
+    }
+}
+
+// Handle Enter key on destination inputs
+function handleDestinationKeypress(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const currentDestinationDiv = e.target.closest('.destination-input');
+        const nextDestinationDiv = currentDestinationDiv.nextElementSibling;
+        
+        if (nextDestinationDiv && nextDestinationDiv.classList.contains('destination-input')) {
+            nextDestinationDiv.querySelector('.destination-location').focus();
+        } else {
+            // If this is the last destination input, add a new one and focus on it
+            addDestination();
+            const newInput = document.querySelector('.destination-input:last-child .destination-location');
             if (newInput) {
                 newInput.focus();
             }
@@ -293,17 +324,26 @@ function initRentalAutocomplete(inputElement) {
     });
 }
 
-// Calculate routes between starting points and destination
+// Calculate routes between all starting points and all destinations
 function calculateRoutes() {
     // Clear previous markers and routes
     clearMarkersAndRoutes();
     
-    // Get destination location
-    const officeLocation = document.getElementById('office-location').value;
-    const officeLabel = document.getElementById('office-label').value;
+    // Get all destination locations and their labels
+    const destinationInputs = document.querySelectorAll('.destination-input');
+    const destinationData = Array.from(destinationInputs)
+        .map(div => {
+            const locationInput = div.querySelector('.destination-location');
+            const labelInput = div.querySelector('.destination-label');
+            return {
+                address: locationInput.value.trim(),
+                label: labelInput.value.trim()
+            };
+        })
+        .filter(data => data.address !== '');
     
-    if (!officeLocation) {
-        alert('Please enter a destination address');
+    if (destinationData.length === 0) {
+        alert('Please enter at least one destination address');
         return;
     }
     
@@ -346,28 +386,59 @@ function calculateRoutes() {
         resultsContainer.appendChild(warningDiv);
     }
     
-    // Geocode the destination location
-    geocodeAddress(officeLocation, (officeLatLng) => {
-        // Add destination marker with custom label if provided
-        const displayOfficeLabel = officeLabel || officeLocation;
-        addMarker(officeLatLng, 'office', displayOfficeLabel, officeLocation);
-        
-        // Clear previous results
-        document.getElementById('commute-results').innerHTML = '';
-        
-        // Calculate routes for each starting point
-        rentalData.forEach((rental, index) => {
-            // Geocode the starting point location
-            geocodeAddress(rental.address, (rentalLatLng) => {
-                // Add starting point marker with custom label if provided
-                const displayLabel = rental.label || rental.address;
-                addMarker(rentalLatLng, 'rental', displayLabel, rental.address, rental.color);
-                
-                // Calculate route using Routes API
-                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address, displayOfficeLabel, officeLocation, rental.color);
+    // Clear previous results
+    document.getElementById('commute-results').innerHTML = '';
+    
+    // Geocode all destinations first
+    const geocodedDestinations = [];
+    let destinationsToProcess = destinationData.length;
+    
+    destinationData.forEach((destination, index) => {
+        geocodeAddress(destination.address, (destinationLatLng) => {
+            // Add destination marker with custom label if provided
+            const displayDestinationLabel = destination.label || destination.address;
+            addMarker(destinationLatLng, 'office', displayDestinationLabel, destination.address);
+            
+            // Store the geocoded destination for later use
+            geocodedDestinations.push({
+                latLng: destinationLatLng,
+                label: displayDestinationLabel,
+                address: destination.address
             });
+            
+            destinationsToProcess--;
+            
+            // When all destinations are geocoded, start processing rentals
+            if (destinationsToProcess === 0) {
+                processRentals();
+            }
         });
     });
+    
+    // Process all starting points after destinations are geocoded
+    function processRentals() {
+        // For each starting point, calculate routes to all destinations
+        rentalData.forEach((rental) => {
+            geocodeAddress(rental.address, (rentalLatLng) => {
+                // Add starting point marker with custom label if provided
+                const displayRentalLabel = rental.label || rental.address;
+                addMarker(rentalLatLng, 'rental', displayRentalLabel, rental.address, rental.color);
+                
+                // Calculate route to each destination
+                geocodedDestinations.forEach((destination) => {
+                    calculateRouteWithRoutesAPI(
+                        destination.latLng, 
+                        rentalLatLng, 
+                        displayRentalLabel, 
+                        rental.address, 
+                        destination.label, 
+                        destination.address, 
+                        rental.color
+                    );
+                });
+            });
+        });
+    }
 }
 
 // Geocode an address to get its coordinates
@@ -865,4 +936,69 @@ function showLocationNotification(message, isError = false) {
     setTimeout(() => {
         notification.remove();
     }, 5000);
+}
+
+// Add a new destination input
+function addDestination() {
+    const destinationsContainer = document.getElementById('destination-inputs');
+    
+    // Create new destination input div
+    const destinationDiv = document.createElement('div');
+    destinationDiv.className = 'destination-input';
+    destinationDiv.dataset.id = nextDestinationId++;
+    
+    // Create input elements with consistent classes
+    destinationDiv.innerHTML = `
+        <div class="input-with-label">
+            <input type="text" class="destination-location address-input" placeholder="Enter destination address">
+            <input type="text" class="destination-label location-label" placeholder="label">
+        </div>
+    `;
+    
+    // Add to container
+    destinationsContainer.appendChild(destinationDiv);
+    
+    // Initialize autocomplete for the new input
+    initDestinationAutocomplete(destinationDiv.querySelector('.destination-location'));
+    
+    // Show the main remove button when we have more than one destination input
+    updateDestinationRemoveButton();
+}
+
+// Helper function to show/hide the destination remove button based on number of destination inputs
+function updateDestinationRemoveButton() {
+    const destinationInputs = document.querySelectorAll('.destination-input');
+    const removeButton = document.getElementById('remove-destination');
+    
+    if (destinationInputs.length > 1) {
+        // Show the remove button when there's more than one destination input
+        removeButton.style.display = 'block';
+    } else {
+        // Hide the remove button if there's only one destination input
+        removeButton.style.display = 'none';
+    }
+}
+
+// Initialize autocomplete for a destination input
+function initDestinationAutocomplete(inputElement) {
+    const autocomplete = new google.maps.places.Autocomplete(inputElement);
+    
+    // Add place_changed listener to handle selection
+    autocomplete.addListener('place_changed', function() {
+        const place = autocomplete.getPlace();
+        if (place.formatted_address) {
+            inputElement.value = place.formatted_address;
+            
+            // Focus on the next input or button if available
+            const currentDestinationDiv = inputElement.closest('.destination-input');
+            const nextDestinationDiv = currentDestinationDiv.nextElementSibling;
+            
+            if (nextDestinationDiv && nextDestinationDiv.classList.contains('destination-input')) {
+                nextDestinationDiv.querySelector('.destination-location').focus();
+            } else {
+                // If this is the last destination input, focus on Add destination button
+                document.getElementById('add-destination').focus();
+            }
+        }
+    });
 } 

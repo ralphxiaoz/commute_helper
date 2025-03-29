@@ -70,11 +70,18 @@
             </div>
             
             <div class="location-section">
-                <h2>To</h2>
-                <div class="destination-input">
-                    <div class="input-with-label">
-                        <input type="text" id="office-location" class="address-input" placeholder="Enter destination address">
-                        <input type="text" id="office-label" class="location-label" placeholder="label">
+                <div class="section-header">
+                    <h2>To</h2>
+                    <button id="add-destination" title="Add destination">+</button>
+                    <button id="remove-destination" class="remove-rental" style="display: none;" title="Remove destination">−</button>
+                </div>
+                <div class="destination-inputs" id="destination-inputs">
+                    <!-- Destination inputs will be added here dynamically -->
+                    <div class="destination-input primary-destination" data-id="1">
+                        <div class="input-with-label">
+                            <input type="text" id="office-location" class="address-input destination-location" placeholder="Enter destination address">
+                            <input type="text" id="office-label" class="location-label destination-label" placeholder="label">
+                        </div>
                     </div>
                 </div>
             </div>
