@@ -329,7 +329,7 @@ function calculateRoutes() {
     // Geocode the destination location
     geocodeAddress(officeLocation, (officeLatLng) => {
         // Add destination marker with custom label if provided
-        const displayOfficeLabel = officeLabel || 'Destination';
+        const displayOfficeLabel = officeLabel || officeLocation;
         addMarker(officeLatLng, 'office', displayOfficeLabel, officeLocation);
         
         // Clear previous results
@@ -344,7 +344,7 @@ function calculateRoutes() {
                 addMarker(rentalLatLng, 'rental', displayLabel, rental.address);
                 
                 // Calculate route using Routes API
-                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address);
+                calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, displayLabel, rental.address, displayOfficeLabel, officeLocation);
             });
         });
     });
@@ -428,7 +428,7 @@ function addMarker(position, type, label, address) {
 }
 
 // Calculate route between destination and starting point
-function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress) {
+function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, rentalAddress, officeLabel, officeAddress) {
     // Get departure time and travel mode from the UI
     const departureDate = document.getElementById('departure-date');
     const departureHour = document.getElementById('departure-hour');
@@ -440,7 +440,7 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     
     // For transit mode, departure time is required
     if (selectedMode === "TRANSIT" && !leaveByCheckbox.checked) {
-        displayRouteError(rentalLabel, "Departure time is required for public transit routes");
+        displayRouteError(rentalLabel, officeLabel, "Departure time is required for public transit routes");
         return;
     }
     
@@ -519,7 +519,7 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
     })
     .then(data => {
         if (data.routes && data.routes.length > 0) {
-            processRoutesAPIResponse(data, rentalLabel);
+            processRoutesAPIResponse(data, rentalLabel, officeLabel);
         } else if (data.error) {
             console.error("Routes API Error:", data.error);
             
@@ -536,24 +536,24 @@ function calculateRouteWithRoutesAPI(officeLatLng, rentalLatLng, rentalLabel, re
             alert(errorMsg);
             
             // Fallback to mock implementation if there's an error
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
         } else {
             console.error("Unexpected Routes API response:", JSON.stringify(data, null, 2));
             alert(`Could not calculate route for ${rentalLabel}. Please try again.`);
             // Fallback to mock implementation
-            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
+            mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
         }
     })
     .catch(error => {
         console.error("Error calling Routes API:", error);
         alert(`Network error when calculating route for ${rentalLabel}. Please check your connection and try again.`);
         // Fallback to mock implementation
-        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress);
+        mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel);
     });
 }
 
 // Process the response from the Routes API
-function processRoutesAPIResponse(response, rentalLabel) {
+function processRoutesAPIResponse(response, rentalLabel, officeLabel) {
     if (!response.routes || response.routes.length === 0) {
         alert(`No route found for ${rentalLabel}`);
         return;
@@ -662,12 +662,12 @@ function processRoutesAPIResponse(response, rentalLabel) {
         }
         
         // Display the information with traffic and transit details if available
-        displayRouteInfo(rentalLabel, durationText, distanceText, trafficText + transitText);
+        displayRouteInfo(rentalLabel, officeLabel, durationText, distanceText, trafficText + transitText);
     }
 }
 
 // This simulates what should be a proper server-side API call
-function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress) {
+function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatLng, rentalAddress, officeLabel) {
     // For now, we'll use the existing Google Maps JS SDK to calculate a route
     // This is a fallback until we implement the proper Routes API integration
     
@@ -738,20 +738,35 @@ function mockRoutesAPIRequest(requestBody, rentalLabel, officeLatLng, rentalLatL
             }
             
             // Display in results panel
-            displayRouteInfo(rentalLabel, duration, distance, additionalInfo);
+            displayRouteInfo(rentalLabel, officeLabel, duration, distance, additionalInfo);
         } else {
-            displayRouteError(rentalLabel, `Could not calculate route: ${status}`);
+            displayRouteError(rentalLabel, officeLabel, `Could not calculate route: ${status}`);
         }
     });
 }
 
 // Display route information in the results panel
-function displayRouteInfo(rentalLabel, duration, distance, additionalInfo = '') {
+function displayRouteInfo(fromLabel, toLabel, duration, distance, additionalInfo = '') {
+    // Debug logging to help diagnose transit display issues
+    console.log('Adding route info to display:', {
+        fromLabel, 
+        toLabel, 
+        duration, 
+        distance, 
+        hasAdditionalInfo: !!additionalInfo,
+        additionalInfoLength: additionalInfo ? additionalInfo.length : 0,
+        travelMode: document.getElementById('travel-mode').value
+    });
+    
     const resultsContainer = document.getElementById('commute-results');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result';
+    
+    // Format the header to always include both from and to locations
+    let routeHeader = `${fromLabel} to ${toLabel}`;
+    
     resultDiv.innerHTML = `
-        <strong>${rentalLabel}</strong><br>
+        <strong>${routeHeader}</strong><br>
         Commute time: ${duration}<br>
         Distance: ${distance}${additionalInfo ? additionalInfo : ''}
     `;
@@ -759,12 +774,12 @@ function displayRouteInfo(rentalLabel, duration, distance, additionalInfo = '') 
 }
 
 // Display route error in the results panel
-function displayRouteError(rentalLabel, errorMessage) {
+function displayRouteError(rentalLabel, officeLabel, errorMessage) {
     const resultsContainer = document.getElementById('commute-results');
     const resultDiv = document.createElement('div');
     resultDiv.className = 'commute-result error';
     resultDiv.innerHTML = `
-        <strong>${rentalLabel}</strong><br>
+        <strong>${rentalLabel} to ${officeLabel}</strong><br>
         <span class="error-message">${errorMessage}</span>
     `;
     resultsContainer.appendChild(resultDiv);
